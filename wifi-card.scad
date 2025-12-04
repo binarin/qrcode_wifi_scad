@@ -9,9 +9,14 @@ qrCodeOnly=false;
 nfcTag=false;
 // Print layer height. This defines how deep QR-code and logo indents are. It should be set to the height of a single print layer. You can set it to multiple layer heights, but the nozzle will likely interfere with the already printed QR-code during card printing.
 layerHeight=0.2;
+/* [WiFi Information] */
+// WiFi network SSID (network name)
+wifiSSID="";
+// WiFi network password
+wifiPassword="";
 /* [Model] */ 
 // Width, Length, Height
-cardSize=[70, 100, 4];
+cardSize=[70, 120, 4];
 // Distance from the edge of the card to the QR-code.
 margin=6;
 // Chamfer size on the edges of the card.
@@ -62,19 +67,51 @@ module qrCode(of, h, cl, data) {
   }
 };
 
-module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data) {
+module wifiText(ssid, password, textSize, layer) {
+  // Text rendering for SSID and password
+  lineSpacing = textSize * 1.5;
+
+  linear_extrude(height = layer) {
+    union() {
+      // SSID text
+      translate([0, lineSpacing / 2, 0])
+        text(ssid, size=textSize, halign="center", valign="center", font="Liberation Sans:style=Bold");
+
+      // Password text
+      translate([0, -lineSpacing / 2, 0])
+        text(password, size=textSize, halign="center", valign="center", font="Liberation Sans:style=Bold");
+    }
+  }
+}
+
+module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data, ssid, password) {
   qrSideLength=size.x - 2 * m;
   qrVerticalCount=len(data);
   qrHorizontalCount=len(data[0]);
   cellSide=qrSideLength / qrHorizontalCount;
   qrHeight=qrVerticalCount * (cellSide - eps);
   qrWidth=qrHorizontalCount * (cellSide - eps);
-  logoYPos=(size.y - (qrHeight + m))/2;
+
+  // Position calculations:
+  // QR code is at top, positioned at size.y - m, extends down qrHeight
+  // Logo SVG is approximately 470 units tall (from SVG coordinates)
+  // Logo is scaled by 0.05, so actual height is ~23.5mm
+  // Logo is centered at logoYPos
+  logoYPos=(size.y - (qrHeight + m))/3;
+  logoHeight = 470 * 0.05;  // Approximate logo height after scaling
+  qrBottomY = size.y - m - qrHeight;
+  logoTopY = logoYPos + logoHeight / 2;
+
+  // Available space is from QR bottom to logo top
+  spaceHeight = qrBottomY - logoTopY;
+  textYPos = logoTopY + spaceHeight / 2;  // Center in the available space
+  textSize=7.0;
   
   if (!qrCodeOnly) { // Card body
     difference() { // NFC tag void
-      difference() { // Deboss Wifi logo
-        difference() { // Deboss QR-code
+      difference() { // Deboss WiFi text
+        difference() { // Deboss Wifi logo
+          difference() { // Deboss QR-code
           translate([ r + ch, r + ch, 0 ])
             // Chamfering the top edges.
             minkowski() {
@@ -95,6 +132,12 @@ module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data) {
           linear_extrude(layer + qrOffsetV)
             scale(0.05)
               wifiLogo();
+          };
+        // WiFi text (SSID and password)
+        if (ssid != "" && password != "") {
+          translate([ size.x / 2, textYPos, size.z - (layer + qrOffsetV) ])
+            wifiText(ssid, password, textSize, layer + qrOffsetV);
+        }
       };
       if (nfcTag) {
         translate([ size.x / 2, size.y / 2, size.z - (nfcTagSize.x + nfcTagDepth) ])
@@ -117,6 +160,11 @@ module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data) {
       linear_extrude(layer)
         scale(0.05)
           wifiLogo();
+    // WiFi text (SSID and password)
+    if (ssid != "" && password != "") {
+      translate([ size.x / 2, textYPos, size.z - layer ])
+        wifiText(ssid, password, textSize, layer);
+    }
   }
 };
 
@@ -124,4 +172,4 @@ module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data) {
 rotate([180, 0, 180])
   translate([ - cardSize.x / 2, - cardSize.y / 2, -cardSize.z ])
 // ----------------------------
-    card(cardSize, margin, chamfer, cornerRadius, layerHeight, qrOffsetHorizontal, qrOffsetVertical, qrData);
+    card(cardSize, margin, chamfer, cornerRadius, layerHeight, qrOffsetHorizontal, qrOffsetVertical, qrData, wifiSSID, wifiPassword);

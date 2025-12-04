@@ -2,6 +2,7 @@
 import qrcode
 import argparse
 import os
+import subprocess
 
 def generate_qr_code(text):
     qr = qrcode.QRCode(
@@ -20,6 +21,7 @@ def generate_wifi_string(ssid, password, encryption='WPA', hidden=False):
     """Generate WiFi QR code string in ZXing format."""
     hidden_flag = 'true' if hidden else 'false'
     return f"WIFI:T:{encryption};S:{ssid};P:{password};H:{hidden_flag};;"
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -49,6 +51,10 @@ Examples:
                         help='WiFi encryption type (default: WPA)')
     parser.add_argument('--hidden', action='store_true',
                         help='Set if the network is hidden')
+    parser.add_argument('--layer-height', '-l',
+                        type=float,
+                        default=0.2,
+                        help='Print layer height in mm (default: 0.2)')
 
     args = parser.parse_args()
 
@@ -77,9 +83,35 @@ Examples:
     # Generate STL files using OpenSCAD
     # Provide a path to openscad executable. Leave unchanged if openscad can be found in PATH variable (openscad can be run as a command from shell).
     openscad_path = 'openscad'
+
+    # Build OpenSCAD parameter list
+    openscad_params = [
+        '-D', f'layerHeight={args.layer_height}'
+    ]
+
+    # Add SSID and password if using --ssid mode
+    if args.ssid:
+        openscad_params.extend([
+            '-D', f'wifiSSID="{args.ssid}"',
+            '-D', f'wifiPassword="{args.password}"'
+        ])
+
     print("Generating qrcode.stl...")
-    os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=true -o ./output/qrcode.stl')
+    subprocess.run([
+        openscad_path, './wifi-card.scad',
+        '-D', 'qrCodeOnly=true',
+        *openscad_params,
+        '-o', './output/qrcode.stl'
+    ], check=True)
+
     print("Generating main_body.stl...")
-    os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=false -D nfcTag=true -o ./output/main_body.stl')
+    subprocess.run([
+        openscad_path, './wifi-card.scad',
+        '-D', 'qrCodeOnly=false',
+        '-D', 'nfcTag=true',
+        *openscad_params,
+        '-o', './output/main_body.stl'
+    ], check=True)
+
     print("Done! STL files saved in ./output/")
 
