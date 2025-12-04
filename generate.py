@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 import qrcode
-import sys
+import argparse
 import os
 
 def generate_qr_code(text):
@@ -15,19 +16,70 @@ def generate_qr_code(text):
     qr_list = [[int(bit) for bit in row] for row in matrix]
     return qr_list
 
+def generate_wifi_string(ssid, password, encryption='WPA', hidden=False):
+    """Generate WiFi QR code string in ZXing format."""
+    hidden_flag = 'true' if hidden else 'false'
+    return f"WIFI:T:{encryption};S:{ssid};P:{password};H:{hidden_flag};;"
+
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        if not os.path.exists("./output"):
-            os.makedirs("./output")
-        text = sys.argv[1]
-        qr_list = generate_qr_code(text)
-        with open("./qrcode-matrix.scad", 'w') as f:
-            f.write('qrData = ')
-            f.write(str(qr_list) + ';')
-        # Provide a path to openscad executable. Leave unchanged if openscad can be found in PATH variable (openscad can be run as a command from shell).
-        openscad_path='openscad'
-        os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=true -o ./output/qrcode.stl')
-        os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=false -D nfcTag=true -o ./output/main_body.stl')
+    parser = argparse.ArgumentParser(
+        description='Generate a WiFi QR-code card for 3D printing.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate WiFi card for a network
+  %(prog)s --ssid "MyNetwork" --password "MyPassword123"
+
+  # Generate WiFi card with WEP encryption
+  %(prog)s --ssid "MyNetwork" --password "MyPassword123" --encryption WEP
+
+  # Generate card with custom text
+  %(prog)s --raw "WIFI:S:MyNet;T:WPA;P:secret;;"
+        """
+    )
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--ssid', '-s', help='WiFi network SSID')
+    group.add_argument('--raw', '-r', help='Raw string to encode (for custom QR codes)')
+
+    parser.add_argument('--password', '-p', help='WiFi network password (required with --ssid)')
+    parser.add_argument('--encryption', '-e',
+                        choices=['WPA', 'WEP', 'nopass'],
+                        default='WPA',
+                        help='WiFi encryption type (default: WPA)')
+    parser.add_argument('--hidden', action='store_true',
+                        help='Set if the network is hidden')
+
+    args = parser.parse_args()
+
+    # Validate that password is provided when using --ssid
+    if args.ssid and not args.password:
+        parser.error("--password is required when using --ssid")
+
+    # Generate the text to encode
+    if args.raw:
+        text = args.raw
     else:
-        print('Error: Please provide a string to encode.')
+        text = generate_wifi_string(args.ssid, args.password, args.encryption, args.hidden)
+
+    print(f"Encoding: {text}")
+
+    # Create output directory if it doesn't exist
+    if not os.path.exists("./output"):
+        os.makedirs("./output")
+
+    # Generate QR code and write to file
+    qr_list = generate_qr_code(text)
+    with open("./qrcode-matrix.scad", 'w') as f:
+        f.write('qrData = ')
+        f.write(str(qr_list) + ';')
+
+    # Generate STL files using OpenSCAD
+    # Provide a path to openscad executable. Leave unchanged if openscad can be found in PATH variable (openscad can be run as a command from shell).
+    openscad_path = 'openscad'
+    print("Generating qrcode.stl...")
+    os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=true -o ./output/qrcode.stl')
+    print("Generating main_body.stl...")
+    os.system(openscad_path + ' ./wifi-card.scad -D qrCodeOnly=false -D nfcTag=true -o ./output/main_body.stl')
+    print("Done! STL files saved in ./output/")
 
