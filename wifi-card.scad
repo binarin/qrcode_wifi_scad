@@ -32,6 +32,11 @@ cornerRadius = 5;
 nfcTagSize=[ 0.4, 13 ];
 // Depth of the NFC tag from the face of the card.
 nfcTagDepth=1.5;
+/* [Magnet Holes] */
+// Diameter of magnet holes in mm (undef = no magnet holes)
+magnetDiameter=undef;
+// Depth of magnet holes in mm (undef = no magnet holes)
+magnetDepth=undef;
 // ----------------
 
 /* [Hidden] */
@@ -84,6 +89,25 @@ module wifiText(ssid, password, textSize, layer) {
   }
 }
 
+module magnetHoles(size, diameter, depth, offset) {
+  // Create 4 magnet holes offset from each corner
+  radius = diameter / 2;
+  union() {
+    // Bottom-left corner
+    translate([offset, offset, 0])
+      cylinder(h=depth, r=radius);
+    // Bottom-right corner
+    translate([size.x - offset, offset, 0])
+      cylinder(h=depth, r=radius);
+    // Top-left corner
+    translate([offset, size.y - offset, 0])
+      cylinder(h=depth, r=radius);
+    // Top-right corner
+    translate([size.x - offset, size.y - offset, 0])
+      cylinder(h=depth, r=radius);
+  }
+}
+
 module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data, ssid, password) {
   qrSideLength=size.x - 2 * m;
   qrVerticalCount=len(data);
@@ -108,8 +132,9 @@ module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data, ssid, password) {
   textSize=7.0;
   
   if (!qrCodeOnly) { // Card body
-    difference() { // NFC tag void
-      difference() { // Deboss WiFi text
+    difference() { // Magnet holes
+      difference() { // NFC tag void
+        difference() { // Deboss WiFi text
         difference() { // Deboss Wifi logo
           difference() { // Deboss QR-code
           translate([ r + ch, r + ch, 0 ])
@@ -142,6 +167,12 @@ module card(size, m, ch, r, layer, qrOffsetH, qrOffsetV, data, ssid, password) {
       if (nfcTag) {
         translate([ size.x / 2, size.y / 2, size.z - (nfcTagSize.x + nfcTagDepth) ])
           cylinder(nfcTagSize.x, r=nfcTagSize.y);
+      }
+      };
+      // Magnet holes on backside
+      if (!is_undef(magnetDiameter) && !is_undef(magnetDepth)) {
+        translate([0, 0, -eps])
+          magnetHoles(size, magnetDiameter, magnetDepth + 2*eps, 10);
       }
     };
   } else { // Deboss QR-code and wifi logo

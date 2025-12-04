@@ -55,12 +55,22 @@ Examples:
                         type=float,
                         default=0.2,
                         help='Print layer height in mm (default: 0.2)')
+    parser.add_argument('--magnet-diameter',
+                        type=float,
+                        help='Diameter of magnet holes in mm (requires --magnet-depth)')
+    parser.add_argument('--magnet-depth',
+                        type=float,
+                        help='Depth of magnet holes in mm (requires --magnet-diameter)')
 
     args = parser.parse_args()
 
     # Validate that password is provided when using --ssid
     if args.ssid and not args.password:
         parser.error("--password is required when using --ssid")
+
+    # Validate that both magnet parameters are provided together
+    if (args.magnet_diameter is not None) != (args.magnet_depth is not None):
+        parser.error("--magnet-diameter and --magnet-depth must be used together")
 
     # Generate the text to encode
     if args.raw:
@@ -94,6 +104,13 @@ Examples:
         openscad_params.extend([
             '-D', f'wifiSSID="{args.ssid}"',
             '-D', f'wifiPassword="{args.password}"'
+        ])
+
+    # Add magnet hole parameters if provided
+    if args.magnet_diameter is not None and args.magnet_depth is not None:
+        openscad_params.extend([
+            '-D', f'magnetDiameter={args.magnet_diameter}',
+            '-D', f'magnetDepth={args.magnet_depth}'
         ])
 
     print("Generating qrcode.stl...")
